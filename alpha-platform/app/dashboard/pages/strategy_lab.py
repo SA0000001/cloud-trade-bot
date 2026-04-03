@@ -1,5 +1,7 @@
-"""Strategy Lab — backtest and walk-forward results viewer."""
+"""Strategy Lab page."""
 from __future__ import annotations
+
+from pathlib import Path
 
 import requests
 import streamlit as st
@@ -34,17 +36,18 @@ def _robustness_badge(label: str) -> str:
 
 
 def render():
-    st.title("🔬 Strategy Lab")
+    st.title("Strategy Lab")
     st.caption("Backtest results, walk-forward analysis, and robustness diagnostics")
 
-    # Strategy registry
-    st.markdown("### 📋 Registered Strategies")
+    st.markdown("### Registered Strategies")
     try:
-        import app.strategies  # trigger registration
+        import app.strategies
         from app.strategies.base import StrategyRegistry
+
         strategies = StrategyRegistry.list_all()
         if strategies:
             import pandas as pd
+
             df = pd.DataFrame(
                 [{"Strategy": k, "Family": v} for k, v in strategies.items()]
             )
@@ -56,80 +59,103 @@ def render():
 
     st.markdown("---")
 
-    # Backtest results
-    st.markdown("### 📊 Backtest Results")
+    st.markdown("### Backtest Results")
     results = _fetch("backtests/best", fallback=[])
 
     if results:
         import pandas as pd
+
         df = pd.DataFrame(results)
-        display = [c for c in [
-            "strategy", "asset", "timeframe", "total_return_pct",
-            "profit_factor", "sharpe_ratio", "max_drawdown_pct",
-            "win_rate", "total_trades", "robustness_score", "robustness_label"
-        ] if c in df.columns]
+        display = [
+            c
+            for c in [
+                "strategy",
+                "asset",
+                "timeframe",
+                "total_return_pct",
+                "profit_factor",
+                "sharpe_ratio",
+                "max_drawdown_pct",
+                "win_rate",
+                "total_trades",
+                "robustness_score",
+                "robustness_label",
+            ]
+            if c in df.columns
+        ]
         st.dataframe(df[display], use_container_width=True, hide_index=True)
     else:
         st.info("No backtest results in database yet. Run a backtest from the research scripts.")
 
     st.markdown("---")
 
-    # Research runner (inline)
-    st.markdown("### ⚗️ Quick Backtest Runner")
-    st.caption("Run a quick in-sample backtest directly from the dashboard. For full research, use the CLI scripts.")
+    st.markdown("### Quick Backtest Runner")
+    st.caption(
+        "Run a quick in-sample backtest directly from the dashboard. "
+        "If CSV data is missing, demo data will be generated automatically."
+    )
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        strategy_name = st.selectbox("Strategy", ["SMA_CROSS", "DONCHIAN_BREAKOUT", "RSI_MEAN_REVERSION"])
+        strategy_name = st.selectbox(
+            "Strategy",
+            ["SMA_CROSS", "DONCHIAN_BREAKOUT", "RSI_MEAN_REVERSION"],
+        )
     with col2:
         asset = st.selectbox("Asset", ["BTCUSDT", "XAUUSD", "EURUSD"])
     with col3:
         timeframe = st.selectbox("Timeframe", ["1h", "4h", "30m", "15m"])
 
-    if st.button("▶️ Run Backtest"):
+    if st.button("Run Backtest"):
         with st.spinner("Running backtest..."):
             try:
-                import pandas as pd
                 from app.core.enums import AssetSymbol, Timeframe
                 from app.core.models import StrategyConfig
                 from app.data.providers.csv_provider import CSVDataProvider
+                from app.data.sample_data import generate_sample_csv
                 from app.research.backtest_runner import SimpleBacktestRunner
                 from app.strategies.base import StrategyRegistry
-                import app.strategies  # register all
+                import app.strategies
 
                 provider = CSVDataProvider(settings.research.data_dir)
                 asset_enum = AssetSymbol(asset)
                 tf_enum = Timeframe(timeframe)
 
                 if not provider.is_available(asset_enum, tf_enum):
-                    st.error(
-                        f"No CSV data found for {asset}/{timeframe}. "
-                        f"Place a file at `{settings.research.data_dir}/{asset}_{timeframe}.csv`"
+                    csv_path = generate_sample_csv(
+                        asset,
+                        timeframe,
+                        output_dir=Path(provider._data_dir),
                     )
-                else:
-                    data = provider.get_ohlcv(asset_enum, tf_enum)
-                    strategy = StrategyRegistry.get(strategy_name)
-                    config = StrategyConfig(
-                        name=strategy_name,
-                        family=strategy.family,
-                        asset=asset_enum,
-                        timeframe=tf_enum,
-                        parameters=strategy.default_parameters(),
+                    provider.clear_cache()
+                    st.info(
+                        f"No CSV data was found for {asset}/{timeframe}. "
+                        f"Generated demo data at `{csv_path}` and continued with that dataset."
                     )
-                    runner = SimpleBacktestRunner()
-                    result = runner.run(data, strategy, config)
 
-                    st.success("Backtest complete!")
-                    col_a, col_b, col_c, col_d = st.columns(4)
-                    col_a.metric("Profit Factor", f"{result.profit_factor:.2f}")
-                    col_b.metric("Sharpe", f"{result.sharpe_ratio:.2f}")
-                    col_c.metric("Max DD", f"{result.max_drawdown_pct*100:.1f}%")
-                    col_d.metric("Trades", result.total_trades)
-                    st.markdown(
-                        f"**Robustness:** {_robustness_badge(str(result.robustness_label))} "
-                        f"(score: {result.robustness_score:.3f})",
-                        unsafe_allow_html=True,
-                    )
+                data = provider.get_ohlcv(asset_enum, tf_enum)
+                strategy = StrategyRegistry.get(strategy_name)
+                config = StrategyConfig(
+                    name=strategy_name,
+                    family=strategy.family,
+                    asset=asset_enum,
+                    timeframe=tf_enum,
+                    parameters=strategy.default_parameters(),
+                )
+                runner = SimpleBacktestRunner()
+                result = runner.run(strategy, data, config)
+
+                st.success("Backtest complete!")
+                col_a, col_b, col_c, col_d = st.columns(4)
+                col_a.metric("Profit Factor", f"{result.profit_factor:.2f}")
+                col_b.metric("Sharpe", f"{result.sharpe_ratio:.2f}")
+                col_c.metric("Max DD", f"{result.max_drawdown_pct * 100:.1f}%")
+                col_d.metric("Trades", result.total_trades)
+                st.markdown(
+                    f"**Robustness:** {_robustness_badge(str(result.robustness_label))} "
+                    f"(score: {result.robustness_score:.3f})",
+                    unsafe_allow_html=True,
+                )
 
             except Exception as e:
                 st.error(f"Backtest failed: {e}")

@@ -27,6 +27,7 @@ from app.core.interfaces import IDataProvider
 logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = {"open", "high", "low", "close", "volume"}
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +49,10 @@ class CSVDataProvider(IDataProvider):
     """
 
     def __init__(self, data_dir: str = "data/historical") -> None:
-        self._data_dir = Path(data_dir)
+        raw_data_dir = Path(data_dir)
+        self._data_dir = (
+            raw_data_dir if raw_data_dir.is_absolute() else PROJECT_ROOT / raw_data_dir
+        )
         self._cache: dict[str, pd.DataFrame] = {}
         logger.info("CSVDataProvider initialized. data_dir=%s", self._data_dir)
 
