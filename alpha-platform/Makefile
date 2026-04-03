@@ -84,7 +84,7 @@ api:
 	$(UVICORN) app.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 dashboard:
-	$(STREAMLIT) run app/dashboard/app.py --server.port 8501
+	$(STREAMLIT) run app/dashboard/main.py --server.port 8501
 
 worker:
 	celery -A app.workers.celery_app worker --loglevel=info --concurrency=2

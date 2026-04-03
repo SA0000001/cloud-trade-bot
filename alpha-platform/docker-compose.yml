@@ -81,7 +81,7 @@ services:
       - api
     volumes:
       - ./data:/app/data
-    command: streamlit run app/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    command: streamlit run app/dashboard/main.py --server.port 8501 --server.address 0.0.0.0
 
   # ─────────────────────────────────────────────────────
   # Celery worker
