@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "alpha-platform"
+version = "0.1.0"
+description = "Paper trading research and signal monitoring platform"
+requires-python = ">=3.11"
+
+dependencies = [
+    # Core
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Web framework
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+
+    # Dashboard
+    "streamlit>=1.31.0",
+    "plotly>=5.18.0",
+
+    # Database
+    "sqlalchemy>=2.0.25",
+    "alembic>=1.13.1",
+    "asyncpg>=0.29.0",       # async PostgreSQL
+    "psycopg2-binary>=2.9.9", # sync PostgreSQL (Alembic, workers)
+
+    # Data
+    "pandas>=2.1.4",
+    "numpy>=1.26.3",
+
+    # HTTP client
+    "httpx>=0.26.0",
+    "requests>=2.31.0",
+
+    # Config
+    "pyyaml>=6.0.1",
+
+    # Task queue
+    "celery[redis]>=5.3.6",
+    "redis>=5.0.1",
+
+    # Notifications
+    # telegram via httpx (no separate library needed)
+
+    # AI reporting (optional)
+    "anthropic>=0.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "black>=24.1.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+    "httpx>=0.26.0",  # for FastAPI TestClient
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+strict = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

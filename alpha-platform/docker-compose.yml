@@ -1,0 +1,109 @@
+version: "3.9"
+
+services:
+
+  # ─────────────────────────────────────────────────────
+  # PostgreSQL
+  # ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: alpha_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: alpha
+      POSTGRES_PASSWORD: alpha
+      POSTGRES_DB: alpha_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alpha -d alpha_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────
+  # Redis
+  # ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: alpha_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────
+  # FastAPI backend
+  # ─────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    container_name: alpha_api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://alpha:alpha@postgres:5432/alpha_platform
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─────────────────────────────────────────────────────
+  # Streamlit dashboard
+  # ─────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.dashboard
+    container_name: alpha_dashboard
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://alpha:alpha@postgres:5432/alpha_platform
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    volumes:
+      - ./data:/app/data
+    command: streamlit run app/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+
+  # ─────────────────────────────────────────────────────
+  # Celery worker
+  # ─────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    container_name: alpha_worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://alpha:alpha@postgres:5432/alpha_platform
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+
+volumes:
+  postgres_data:

@@ -1,0 +1,41 @@
+# Alpha Platform — Default Configuration
+# Override any value with an environment variable (ALL_CAPS).
+# Secrets (tokens, keys, passwords) MUST be set via env vars or .env file.
+
+app_env: development
+log_level: INFO
+
+database:
+  pool_size: 10
+  echo: false
+
+redis:
+  # url: redis://localhost:6379/0
+
+research:
+  data_dir: data/historical
+  results_dir: data/results
+  commission_pct: 0.001
+  slippage_pct: 0.0005
+  in_sample_ratio: 0.70
+  walk_forward_windows: 5
+  min_trades: 30
+
+paper_engine:
+  initial_equity: 10000.0
+  state_file: data/state/paper_engine_state.json
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+
+telegram:
+  enabled: false
+  # bot_token and chat_id must come from env vars
+
+ai:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  enabled: false
+  # api_key must come from env var AI_API_KEY

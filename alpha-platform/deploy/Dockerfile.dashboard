@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+LABEL maintainer="Alpha Platform"
+LABEL description="Streamlit dashboard service"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e "."
+
+COPY . .
+
+RUN mkdir -p data/historical data/results data/state
+
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8501
+
+# Streamlit config: disable usage stats, set theme
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+ENV STREAMLIT_THEME_BASE=dark
+
+CMD ["streamlit", "run", "app/dashboard/app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true"]
